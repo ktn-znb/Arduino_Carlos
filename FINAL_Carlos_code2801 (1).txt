@@ -1,0 +1,154 @@
+ /*
+Car-li: Line following Car
+inputs:
++IR sensors 0x2
++Ultrasound sensor
++switch
+
+outputs:
++motor driver
++display (optional)
++buzzer (optional)
+
+power: DC battery (9V)
+
+code uploaded on Arduino uno
+
+*/
+
+//defining IR sensor pins
+int IR_SENSOR_RIGHT = 11;
+int IR_SENSOR_LEFT = 12;
+
+//setting motor speed to 180
+int MOTOR_SPEED = 180; 
+
+//Right motor pins
+int enableRightMotor = 6;
+int rightMotorPin1 = 7;
+int rightMotorPin2 = 8;
+
+//Left motor pins
+int enableLeftMotor = 5;
+int leftMotorPin1 = 9;
+int leftMotorPin2 = 10;
+
+//setting ultrasound sensor pins
+int USoundinputPin = 3; // signal receiver pin ECHO to D3
+int USoundoutputPin = 4; // signal transmitter pin TRIG to D4
+
+//buzzer
+int buzz = 13; //output pin for buzzer
+
+
+void setup() {
+    //The problem with TT gear motors is that, at very low pwm value it does not even rotate.
+    //If we increase the PWM value then it rotates faster and our robot is not controlled in that speed and goes out of line.
+    //For that we need to increase the frequency of analogWrite.
+    //Below line is important to change the frequency of PWM signal on pin D5 and D6
+    //Because of this, motor runs in controlled manner (lower speed) at high PWM value.
+    //This sets frequecny as 7812.5 hz.
+    TCCR0B = TCCR0B & B11111000 | B00000010;
+
+    // put your setup code here, to run once:
+    pinMode(enableRightMotor, OUTPUT);
+    pinMode(rightMotorPin1, OUTPUT);
+    pinMode(rightMotorPin2, OUTPUT);
+
+    pinMode(enableLeftMotor, OUTPUT);
+    pinMode(leftMotorPin1, OUTPUT);
+    pinMode(leftMotorPin2, OUTPUT);
+
+    // IR sensor setups
+    pinMode(IR_SENSOR_RIGHT, INPUT);
+    pinMode(IR_SENSOR_LEFT, INPUT);
+    rotateMotor(0, 0);
+
+    //ultrasound setups
+    Serial.begin(9600);
+    pinMode(USoundinputPin, INPUT);
+    pinMode(USoundoutputPin, OUTPUT);
+    delay(1000);
+
+    //buzzer setup
+    pinMode(buzz, OUTPUT);
+
+    
+}
+
+
+void loop() {
+
+    int rightIRSensorValue = digitalRead(IR_SENSOR_RIGHT);
+    int leftIRSensorValue = digitalRead(IR_SENSOR_LEFT);
+    
+    digitalWrite(USoundoutputPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(USoundoutputPin, HIGH); // Pulse for 10μs to trigger ultrasonic detection
+    delayMicroseconds(10);
+    digitalWrite(USoundoutputPin, LOW);
+    int distance = pulseIn(USoundinputPin, HIGH); // Read receiver pulse time
+    distance = abs(distance/58); // Transform pulse time to Distance in mm
+    
+    Serial.println(distance);
+
+    //Ultrasound + IR loop
+    if (distance > 10) { //if sensors detect distance more than 50mm start motors
+      //If none of the sensors detects black line, then go straight
+      
+      if (rightIRSensorValue == LOW && leftIRSensorValue == LOW)
+      {
+        rotateMotor(MOTOR_SPEED, MOTOR_SPEED); //run both motors at the same speed
+      }
+      //If right sensor detects black line, then turn right
+      else if (rightIRSensorValue == LOW && leftIRSensorValue == HIGH )
+      {
+        rotateMotor((MOTOR_SPEED-50), MOTOR_SPEED); //run right motor at normal speed and left motor at slower speed
+      }
+      //If left sensor detects black line, then turn left  
+      else if (rightIRSensorValue == HIGH && leftIRSensorValue == LOW )
+      {
+       rotateMotor(MOTOR_SPEED, (MOTOR_SPEED-50)); //run right motor at lowered speed and left motor at normal speed
+      } 
+      //If both the sensors detect black line, then stop 
+       else {
+        rotateMotor(0, 0); //stop both motors
+       }
+    }
+    else{
+      rotateMotor(0,0);
+      tone(buzz,1000,500); //turn on buzzer
+      delay(500);
+      tone(buzz,2000,500); //turn on buzzer
+      delay(500);
+      digitalWrite(buzz, LOW); //turn off buzzer
+    }
+    
+    delay(50);
+}
+
+
+void rotateMotor(int rightMotorSpeed, int leftMotorSpeed) {
+
+    if (rightMotorSpeed > 0) {
+        digitalWrite(rightMotorPin1, HIGH);
+        digitalWrite(rightMotorPin2, LOW);
+    }
+    else
+    {
+        digitalWrite(rightMotorPin1, LOW);
+        digitalWrite(rightMotorPin2, LOW);
+    }
+
+    if (leftMotorSpeed > 0) {
+        digitalWrite(leftMotorPin1, HIGH);
+        digitalWrite(leftMotorPin2, LOW);
+    }
+    else
+    {
+        digitalWrite(leftMotorPin1, LOW);
+        digitalWrite(leftMotorPin2, LOW);
+    }
+    analogWrite(enableRightMotor, abs(rightMotorSpeed));
+    analogWrite(enableLeftMotor, abs(leftMotorSpeed));
+}
